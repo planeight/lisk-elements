@@ -1,0 +1,19 @@
+{
+	"presets": ["env"],
+	"plugins": ["transform-runtime", "transform-object-rest-spread"],
+	"env": {
+		"test": {
+			"plugins": ["istanbul"]
+		},
+		"buildcheck": {
+			"plugins": [
+				[
+					"module-resolver",
+					{
+							"root": ["./dist"]
+					}
+				]
+			]
+		}
+	}
+}
