@@ -30,7 +30,7 @@
 		"uglify": "uglifyjs -nm -o ./dist-browser/index.min.js ./dist-browser/index.js",
 		"uglify:browsertest": "uglifyjs -o ./browsertest.build/browsertest.min.js ./browsertest.build/browsertest.js",
 		"clean": "./scripts/clean.sh",
-		"format": "prettier --write \"*.{js,json}\" \"{src,test}/**/*.{js,json}\"",
+		"format": "prettier --write \"*.{js,json}\" \"{src,fixtures,test}/**/*.{js,json}\"",
 		"lint": "eslint .",
 		"lint:fix": "npm run lint -- --fix",
 		"test": "NODE_ENV=test nyc mocha test",
@@ -58,6 +58,7 @@
 		"prepublishOnly": "npm run lint && npm test && npm run build && npm run build:check"
 	},
 	"dependencies": {
+		"browserify-bignum": "1.3.0-2",
 		"lisk-constants": "1.0.0",
 		"lisk-cryptography": "1.0.0",
 		"lisk-passphrase": "1.0.0",

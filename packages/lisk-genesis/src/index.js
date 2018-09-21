@@ -13,6 +13,6 @@
  *
  */
 
-import generateGenesisBlock from './genesis_block';
+import { generateGenesisBlock } from './generate_genesis_block';
 
 export default generateGenesisBlock;
