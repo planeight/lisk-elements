@@ -16,19 +16,7 @@ import crypto from 'crypto';
 import bignum from 'browserify-bignum';
 import cryptography from 'lisk-cryptography';
 import passphraseModule from 'lisk-passphrase';
-import transactionsUtil from 'lisk-transactions';
-
-const {
-	utils: { prepareTransaction, getTransactionBytes },
-} = transactionsUtil;
-const {
-	hexToBuffer,
-	hash,
-	signData,
-	getFirstEightBytesReversed,
-	bufferToBigNumberString,
-	getAddressAndPublicKeyFromPassphrase,
-} = cryptography;
+import transactionModule from 'lisk-transactions';
 
 export const getBlockBytes = block => {
 	const versionBuffer = Buffer.alloc(4);
@@ -54,8 +42,10 @@ export const getBlockBytes = block => {
 	});
 	const payloadLengthBuffer = Buffer.alloc(4);
 	payloadLengthBuffer.writeInt32LE(block.payloadLength);
-	const payloadHashBuffer = hexToBuffer(block.payloadHash);
-	const generatorPublicKeyBuffer = hexToBuffer(block.generatorPublicKey);
+	const payloadHashBuffer = cryptography.hexToBuffer(block.payloadHash);
+	const generatorPublicKeyBuffer = cryptography.hexToBuffer(
+		block.generatorPublicKey,
+	);
 
 	return Buffer.concat([
 		versionBuffer,
@@ -72,9 +62,11 @@ export const getBlockBytes = block => {
 };
 
 export const getBlockId = blockBytes => {
-	const blockHash = hash(blockBytes);
-	const bufferFromFirstEntriesReversed = getFirstEightBytesReversed(blockHash);
-	const firstEntriesToNumber = bufferToBigNumberString(
+	const blockHash = cryptography.hash(blockBytes);
+	const bufferFromFirstEntriesReversed = cryptography.getFirstEightBytesReversed(
+		blockHash,
+	);
+	const firstEntriesToNumber = cryptography.bufferToBigNumberString(
 		bufferFromFirstEntriesReversed,
 	);
 	return firstEntriesToNumber;
@@ -82,9 +74,10 @@ export const getBlockId = blockBytes => {
 
 export const createAccount = () => {
 	const passphrase = passphraseModule.Mnemonic.generateMnemonic();
-	const { publicKey, address } = getAddressAndPublicKeyFromPassphrase(
-		passphrase,
-	);
+	const {
+		publicKey,
+		address,
+	} = cryptography.getAddressAndPublicKeyFromPassphrase(passphrase);
 	return {
 		passphrase,
 		publicKey,
@@ -111,7 +104,7 @@ export const createTransferTx = ({
 		recipientPublicKey,
 		asset: {},
 	};
-	return prepareTransaction(transaction, passphrase);
+	return transactionModule.utils.prepareTransaction(transaction, passphrase);
 };
 
 export const createSecondSignatureTx = ({
@@ -135,7 +128,7 @@ export const createSecondSignatureTx = ({
 			},
 		},
 	};
-	return prepareTransaction(transaction, passphrase);
+	return transactionModule.utils.prepareTransaction(transaction, passphrase);
 };
 
 export const createRegisterDelegateTx = ({
@@ -159,7 +152,7 @@ export const createRegisterDelegateTx = ({
 			},
 		},
 	};
-	return prepareTransaction(transaction, passphrase);
+	return transactionModule.utils.prepareTransaction(transaction, passphrase);
 };
 
 export const createVoteTx = ({
@@ -182,14 +175,14 @@ export const createVoteTx = ({
 			votes,
 		},
 	};
-	return prepareTransaction(transaction, passphrase);
+	return transactionModule.utils.prepareTransaction(transaction, passphrase);
 };
 
 export const getTransactionPayloadInfo = transactions => {
 	const { payloadLength, calculatedHash } = transactions.reduce(
 		(accumulated, current) => {
-			const txBytes = getTransactionBytes(current);
-			accumulated.hash.update(txBytes);
+			const txBytes = transactionModule.utils.getTransactionBytes(current);
+			accumulated.calculatedHash.update(txBytes);
 			return {
 				payloadLength: accumulated.payloadLength + txBytes.length,
 				calculatedHash: accumulated.calculatedHash,
@@ -223,8 +216,8 @@ export const signBlock = (rawBlock, passphrase) => {
 		...transactionPayloadInfo,
 	};
 	const blockBytes = getBlockBytes(blockWithPayloadInfo);
-	const blockHash = hash(blockBytes);
-	const signature = signData(blockHash, passphrase);
+	const blockHash = cryptography.hash(blockBytes);
+	const signature = cryptography.signData(blockHash, passphrase);
 	return {
 		...blockWithPayloadInfo,
 		blockSignature: signature,
@@ -312,7 +305,7 @@ export const generateGenesisBlock = ({
 	const id = getBlockId(
 		Buffer.concat([
 			getBlockBytes(signedBlock),
-			hexToBuffer(signedBlock.blockSignature),
+			cryptography.hexToBuffer(signedBlock.blockSignature),
 		]),
 	);
 	const blockWithId = {

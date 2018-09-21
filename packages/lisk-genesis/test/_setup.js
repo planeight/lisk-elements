@@ -12,9 +12,10 @@
  * Removal or modification of this copyright notice is prohibited.
  *
  */
-import { Assertion } from 'chai';
+import chai, { Assertion } from 'chai';
 import 'chai/register-expect';
 import sinon from 'sinon';
+import sinonChai from 'sinon-chai';
 
 process.env.NODE_ENV = 'test';
 
@@ -45,6 +46,8 @@ Assertion.addProperty('integer', function handleAssert() {
 	);
 });
 /* eslint-enable no-underscore-dangle */
+
+[sinonChai].forEach(plugin => chai.use(plugin));
 
 global.sandbox = sinon.createSandbox({
 	useFakeTimers: true,
