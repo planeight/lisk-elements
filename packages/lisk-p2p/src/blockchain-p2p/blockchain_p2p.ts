@@ -12,8 +12,11 @@
  * Removal or modification of this copyright notice is prohibited.
  *
  */
+
 import { IPeerOptions, IPeerReturnType, P2P } from '../generic-p2p/p2p';
+import { IP2PConfig } from '../generic-p2p/p2p_types';
 import { BlockchainPeer } from './blockchain_peer';
+
 /* tslint:disable:interface-name readonly-keyword no-empty-interface no-let*/
 
 export interface IOptionsLiskPeer extends IPeerOptions {}
@@ -23,8 +26,8 @@ interface IHistogramType {
 }
 
 export class BlockchainP2P extends P2P {
-	public constructor() {
-		super();
+	public constructor(config: IP2PConfig) {
+		super(config);
 	}
 
 	public selectPeers = (

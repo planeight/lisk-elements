@@ -13,9 +13,11 @@
  *
  */
 /* tslint:disable:interface-name no-unused-expression */
+
 import {
 	INetworkStatus,
 	IP2P,
+	IP2PConfig,
 	IP2PMessagePacket,
 	IP2PNodeStatus,
 	IP2PPenalty,
@@ -34,6 +36,10 @@ export interface IPeerOptions {
 }
 
 export abstract class P2P implements IP2P {
+	public constructor(config: IP2PConfig) {
+		config;
+	}
+
 	public applyPenalty = (penalty: IP2PPenalty): void => {
 		// TODO
 		penalty;
@@ -64,7 +70,7 @@ export abstract class P2P implements IP2P {
 		// TODO
 	};
 	// TODO
-	public start = (): PromiseConstructorLike => Promise;
+	public start = async (): Promise<void> => Promise.resolve();
 	// TODO
 	public stop = (): PromiseConstructorLike => Promise;
 }

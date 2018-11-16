@@ -63,5 +63,11 @@
 		"typescript": "3.0.3",
 		"uglify-es": "3.3.9",
 		"wait-on": "3.0.1"
+	},
+	"dependencies": {
+		"@types/component-emitter": "1.2.7",
+		"@types/jsonwebtoken": "8.3.0",
+		"socketcluster-client": "14.2.1",
+		"socketcluster-server": "14.3.1"
 	}
 }

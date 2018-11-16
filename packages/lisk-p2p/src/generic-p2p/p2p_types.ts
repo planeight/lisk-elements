@@ -21,27 +21,41 @@ export interface IP2PResponsePacket {}
 
 export interface IP2PNodeStatus {}
 
+export interface IP2PConfig {}
+
 export interface IP2PPenalty {}
 
 export interface INetworkStatus {}
 
+export interface ILogger {
+	readonly error: (message: string) => void;
+	readonly info: (message: string) => void;
+	readonly log: (message: string) => void;
+	readonly trace: (message: string) => void;
+	readonly warn: (message: string) => void;
+}
+
+export enum PeerState {
+	BANNED = 0,
+	DISCONNECTED = 1,
+	CONNECTED = 2,
+}
+
 export interface IPeer {
 	readonly getClock?: () => Date;
 	readonly getHttpPort?: () => number;
+	readonly getId: () => string;
 	readonly getIp: () => string;
 	readonly getNonce?: () => string;
 	readonly getOS?: () => string;
-	readonly getState?: () => number;
+	readonly getState?: () => PeerState;
 	readonly getVersion?: () => string;
 	readonly getWsPort: () => number;
 	readonly setClock?: (clock: Date) => void;
 	readonly setHttpPort?: (httpPort: number) => void;
-	readonly setIp: (ip: string) => void;
 	readonly setNonce?: (nonce: string) => void;
 	readonly setOS?: (os: string) => void;
-	readonly setState?: (state: number) => void;
 	readonly setVersion?: (version: string) => void;
-	readonly setWsPort: (port: number) => void;
 }
 
 export interface IP2P {
@@ -51,6 +65,6 @@ export interface IP2P {
 	readonly request: (packet: IP2PRequestPacket) => Promise<IP2PResponsePacket>;
 	readonly send: (message: IP2PMessagePacket) => void;
 	readonly setNodeStatus: (nodeStatus: IP2PNodeStatus) => void;
-	readonly start: () => PromiseConstructorLike;
+	readonly start: () => Promise<void>;
 	readonly stop: () => PromiseConstructorLike;
 }

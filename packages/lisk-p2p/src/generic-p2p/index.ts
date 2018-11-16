@@ -13,9 +13,6 @@
  *
  */
 /* tslint:disable:no-default-export */
-import { P2P } from './p2p';
-import { Peer } from './peer';
-export default {
-	P2P,
-	Peer,
-};
+
+export { P2P } from './p2p';
+export { Peer } from './peer';

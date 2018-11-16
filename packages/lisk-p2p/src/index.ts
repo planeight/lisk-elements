@@ -12,3 +12,13 @@
  * Removal or modification of this copyright notice is prohibited.
  *
  */
+
+export { P2P, Peer } from './generic-p2p';
+export {
+	BlockchainP2P,
+	IOptionsLiskPeer,
+} from './blockchain-p2p/blockchain_p2p';
+export {
+	BlockchainPeer,
+	IBlockchainPeerConfig,
+} from './blockchain-p2p/blockchain_peer';

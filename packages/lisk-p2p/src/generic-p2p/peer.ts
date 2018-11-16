@@ -13,37 +13,54 @@
  *
  */
 /* tslint:disable:interface-name */
-import { IPeer } from './p2p_types';
+import { ILogger, IPeer, PeerState } from './p2p_types';
+
+// TODO: Use to create outbound socket connection inside peer object.
+// TODO: const socketClusterClient = require('socketcluster-client');
 
 export interface IPeerConfig {
 	readonly clock?: Date;
 	readonly httpPort?: number;
+	readonly id: string;
+	readonly inboundSocket?: any; // TODO: Type SCSocket
 	readonly ip: string;
+	readonly logger: ILogger;
 	readonly os?: string;
-	readonly state?: number;
 	readonly version?: string;
 	readonly wsPort: number;
 }
 
 export class Peer implements IPeer {
-	private ip: string;
-	private wsPort: number;
+	private readonly id: string;
+	private readonly inboundSocket: any;
+	private readonly ip: string;
+	private readonly wsPort: number;
 
 	public constructor(peerConfig: IPeerConfig) {
+		this.id = peerConfig.id;
 		this.ip = peerConfig.ip;
 		this.wsPort = peerConfig.wsPort;
+		this.inboundSocket = peerConfig.inboundSocket;
+	}
+
+	public getId(): string {
+		return this.id;
 	}
 
 	public getIp(): string {
 		return this.ip;
 	}
+
+	// TODO: Return BANNED when appropriate.
+	public getState(): PeerState {
+		if (this.inboundSocket.state === this.inboundSocket.OPEN) {
+			return PeerState.CONNECTED;
+		}
+
+		return PeerState.DISCONNECTED;
+	}
+
 	public getWsPort(): number {
 		return this.wsPort;
-	}
-	public setIp(ip: string): void {
-		this.ip = ip;
-	}
-	public setWsPort(wsPort: number): void {
-		this.wsPort = wsPort;
 	}
 }
