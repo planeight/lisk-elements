@@ -1,7 +1,6 @@
 import { takeRightWhile } from 'lodash';
-import { Transaction } from './transaction_pool';
+import { Transaction } from  './transaction_pool';
 
-// tslint:disable
 interface QueueIndex {
 	// tslint:disable-next-line
 	[index: string]: Transaction;
@@ -18,7 +17,7 @@ export class Queue {
 	}
 
 	public get index(): QueueIndex {
-		return this._index;
+		return this._index
 	}
 
 	public constructor() {
@@ -26,27 +25,54 @@ export class Queue {
 		this._index = {};
 	}
 
-	public dequeueUntil(
-		condition: (transaction: Transaction) => boolean,
-	): ReadonlyArray<Transaction> {
-		return this.transactions;
-	}
-
 	public enqueueMany(transactions: ReadonlyArray<Transaction>): void {
-		return;
+		this._transactions = [...transactions, ...this._transactions];
+
+		transactions.forEach((transaction: Transaction) => {
+			this._index[transaction.id] = transaction;
+		});
 	}
 
 	public enqueueOne(transaction: Transaction): void {
-		return;
+		this._transactions = [transaction, ...this._transactions];
+		this._index[transaction.id] = transaction;
 	}
 
 	public exists(transaction: Transaction): boolean {
 		return !!this._index[transaction.id];
 	}
 
-	public removeFor(
-		condition: (transaction: Transaction) => boolean,
-	): ReadonlyArray<Transaction> {
-		return this._transactions;
+	public removeFor(condition: (transaction: Transaction) => boolean): ReadonlyArray<Transaction> {
+	 	// tslint:disable
+		interface ReduceObjectInterface {
+			effected: Array<Transaction>;
+			uneffected: Array<Transaction>;
+		}
+
+		const { uneffected, effected } = this._transactions.reduce(({effected, uneffected}: ReduceObjectInterface, transaction: Transaction) => {
+			if (condition(transaction)) {
+				 effected.push(transaction)
+				 delete this._index[transaction.id];
+			} else {
+				uneffected.push(transaction);
+			}
+
+			return {effected, uneffected};
+		}, {uneffected: [], effected: []});
+		this._transactions = uneffected;
+
+		return effected;
+	}
+
+	public dequeueUntil(condition: (transaction: Transaction) => boolean): ReadonlyArray<Transaction> {
+		// Take transactions from the end as long as the condtion passes for transactions in queue
+		const dequeuedTransactions = takeRightWhile(this._transactions, condition); 
+		// Remove transactions which pass the condition from the queue
+		this._transactions = this._transactions.slice(0, this.transactions.length - dequeuedTransactions.length);
+		dequeuedTransactions.forEach((transaction: Transaction) => {
+			delete this._index[transaction.id];
+		});
+
+		return dequeuedTransactions;
 	}
 }
