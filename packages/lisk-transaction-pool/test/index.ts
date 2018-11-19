@@ -14,5 +14,5 @@
  */
 import { expect } from 'chai';
 
-describe('transaction_pool', () => {
+describe('transaction pool', () => {
 });

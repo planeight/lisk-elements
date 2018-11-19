@@ -1,5 +1,5 @@
 import { takeRightWhile } from 'lodash';
-import { Transaction } from  './index';
+import { Transaction } from  './transaction_pool';
 
 interface QueueIndex {
 	// tslint:disable-next-line

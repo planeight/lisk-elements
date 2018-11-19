@@ -1,4 +1,4 @@
-import {Transaction} from './index';
+import { Transaction } from './transaction_pool';
 
 export type transactionFilterableKeys = 'id' | 'recipientId' | 'senderId';
 
