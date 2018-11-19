@@ -14,8 +14,8 @@
  */
 import { flatMap } from 'lodash';
 import { Queue } from './queue';
+import {checkTransactionForExpiryTime, checkTransactionPropertyForValues, returnTrueUntilLimit, transactionFilterableKeys} from './utils';
 
-type transactionFilterableKeys = 'id' | 'recipientId' | 'senderId';
 
 export interface TransactionObject {
 	readonly id: string;
@@ -46,19 +46,6 @@ interface ProcessTransactionsResponse {
 }
 
 type processTransactions = (transactions: ReadonlyArray<Transaction>) => ProcessTransactionsResponse;
-
-const checkTransactionPropertyForValues = (values: ReadonlyArray<string>, propertyName: transactionFilterableKeys): (transaction: Transaction) => boolean =>
-	(transaction: Transaction) => values.indexOf(transaction[propertyName]) !== -1;
-
-const checkTransactionForExpireTime = (time: Date): (transaction: Transaction) => boolean => 
-	(transaction: Transaction) => time.getTime() >= transaction.receivedAt.getTime()
-
-const returnTrueUntilLimit = (limit: number): (transaction: Transaction) => boolean => {
-	// tslint:disable-next-line
-	let current = 0;
-
-	return (_) => ++current < limit;
-}
 
 export class TransactionPool {
 	private applyTransactions: processTransactions;
@@ -159,7 +146,7 @@ export class TransactionPool {
 	private expireTransactions(): void {
 		const expiryTime = new Date();
 		Object.keys(this.queues).forEach(queueName => {
-			this.queues.queueName.removeFor(checkTransactionForExpireTime(expiryTime));
+			this.queues[queueName].removeFor(checkTransactionForExpiryTime(expiryTime));
 		});
 	}
 
@@ -175,9 +162,12 @@ export class TransactionPool {
 		this.verifyTransactions(transactionsToVerify);
 	}
 
-	private processVerifiedTransactions() {
-//	const numberOfTransactionsToVerify = 100;
-//	const transactionsToValidate = this.queues.validated.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToVerify));
-//	this.verifyTransactions(transactionsToValidate);
-	}
+	/** 
+	 * 
+	 *	private processVerifiedTransactions() {
+	 *	const numberOfTransactionsToVerify = 100;
+	 *	const transactionsToValidate = this.queues.validated.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToVerify));
+	 *	this.verifyTransactions(transactionsToValidate);
+	 *	}
+	**/
 }
