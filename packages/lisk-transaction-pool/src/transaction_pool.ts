@@ -48,33 +48,46 @@ type processTransactions = (transactions: ReadonlyArray<Transaction>) => Process
 
 export class TransactionPool {
 	private applyTransactions: processTransactions;
-	private queues: Queues;
+	// tslint:disable-next-line
+	private _queues: Queues;
 	private validateTransactions: processTransactions;
 	private verifyTransactions: processTransactions;
 
 	public constructor (validateTransactions:processTransactions, verifyTransactions: processTransactions, applyTransactions: processTransactions) {
-		this.queues = {
+		this._queues = {
 			received: new Queue(),
 			validated: new Queue(),
 			verified: new Queue(),
 			pending: new Queue(),
 			ready: new Queue(),
 		};
+		console.log('this._queues.received');
+		console.log(this._queues.received);
 		this.validateTransactions = validateTransactions;
 		this.verifyTransactions =  verifyTransactions;
 		this.applyTransactions = applyTransactions;
+		console.log('eventStubs', this.expireTransactions, this.processVerifiedTransactions, this.validateReceivedTransactions, this.verifyValidatedTransactions)
 	}
 
 	public addTransactions(transactions: ReadonlyArray<Transaction>): void {
 		transactions.forEach((transaction: Transaction) => {
 			if (this.existsInTransactionPool(transaction)) {
-				this.queues.received.enqueueOne(transaction);
+				this._queues.received.enqueueOne(transaction);
 			}
 		});
 	}
 
+	public existsInTransactionPool(transaction: Transaction): boolean {
+		return Object.keys(this._queues).reduce((previousValue, currentValue) => previousValue || this._queues[currentValue].exists(transaction), false);
+	}
+
+
+	public get queues (): Queues {
+		return this._queues;
+	}
+
 	public getProcessableTransactions(limit: number): ReadonlyArray<Transaction> {
-		return this.queues.ready.dequeueUntil(returnTrueUntilLimit(limit));
+		return this._queues.ready.dequeueUntil(returnTrueUntilLimit(limit));
 	}
 
 	public onDeleteBlock(block: Block): void {
@@ -85,23 +98,23 @@ export class TransactionPool {
 			received,
 			validated,
 			...otherQueues
-		} = this.queues;
+		} = this._queues;
 
 		const transactionsToAffectedAccounts = flatMap(Object.keys(otherQueues).map(queueName => 
-			this.queues[queueName].removeFor(checkTransactionPropertyForValues(transactionsRecipient, receipientProperty))
+			this._queues[queueName].removeFor(checkTransactionPropertyForValues(transactionsRecipient, receipientProperty))
 		));
 
-		this.queues.validated.enqueueMany(transactionsToAffectedAccounts);
+		this._queues.validated.enqueueMany(transactionsToAffectedAccounts);
 
 		// Add transactions to the verfied queue which were included in the deleted block
-		this.queues.verified.enqueueMany(block.transactions);
+		this._queues.verified.enqueueMany(block.transactions);
 	}
 
 	public onNewBlock(block: Block): void {
 		// Remove transactions in the transaction pool which were included in the new block
 		const idProperty: transactionFilterableKeys = 'id';
 		const transactionIds = block.transactions.map(transaction => transaction[idProperty]);
-		Object.keys(this.queues).forEach(queueName => this.queues[queueName].removeFor(checkTransactionPropertyForValues(transactionIds, idProperty)));
+		Object.keys(this._queues).forEach(queueName => this._queues[queueName].removeFor(checkTransactionPropertyForValues(transactionIds, idProperty)));
 
 		// Move transactions from the verified, multisignature and ready queues to validated queue which were sent from the accounts in the new block 
 		const senderProperty: transactionFilterableKeys = 'senderId';
@@ -110,12 +123,15 @@ export class TransactionPool {
 			received,
 			validated,
 			...otherQueues
-		} = this.queues;
+		} = this._queues;
 		const transactionsFromAffectedAccounts = flatMap(Object.keys(otherQueues).map(queueName => 
-				this.queues[queueName].removeFor(checkTransactionPropertyForValues(transactionsSenders, senderProperty))
+				this._queues[queueName].removeFor(checkTransactionPropertyForValues(transactionsSenders, senderProperty))
 		));
 
-		this.queues.validated.enqueueMany(transactionsFromAffectedAccounts);
+		console.log('transactionsFromAffectedAccounts')
+		console.log(transactionsFromAffectedAccounts)
+		// Reverify transactions which contain unique data
+		this._queues.validated.enqueueMany(transactionsFromAffectedAccounts);
 	}
 
 	public onRoundRollback(delegates: ReadonlyArray<string>): void {
@@ -124,45 +140,42 @@ export class TransactionPool {
 			received,
 			validated,
 			...otherQueues
-		} = this.queues;
+		} = this._queues;
 		const senderProperty: transactionFilterableKeys = 'senderId';
 		const transactionsFromAffectedAccounts = flatMap(Object.keys(otherQueues).map(queueName => 
-				this.queues[queueName].removeFor(checkTransactionPropertyForValues(delegates, senderProperty))
+				this._queues[queueName].removeFor(checkTransactionPropertyForValues(delegates, senderProperty))
 		));
 
-		this.queues.validated.enqueueMany(transactionsFromAffectedAccounts);
+		this._queues.validated.enqueueMany(transactionsFromAffectedAccounts);
 	}
 
 	public verifyTransaction(): Queues {
-		return this.queues;
-	}
-
-	private existsInTransactionPool(transaction: Transaction): boolean {
-		return Object.keys(this.queues).reduce((previousValue, currentValue) => previousValue || this.queues[currentValue].exists(transaction), false);
+		return this._queues;
 	}
 
 	private expireTransactions(): void {
 		const expiryTime = new Date();
-		Object.keys(this.queues).forEach(queueName => {
-			this.queues[queueName].removeFor(checkTransactionForExpiryTime(expiryTime));
+		Object.keys(this._queues).forEach(queueName => {
+			this._queues[queueName].removeFor(checkTransactionForExpiryTime(expiryTime));
 		});
 	}
 
 	private processVerifiedTransactions(): void {
 		const numberOfTransactionsToVerify = 100;
-		const transactionsToValidate = this.queues.validated.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToVerify));
+		const transactionsToValidate = this._queues.validated.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToVerify));
 		this.applyTransactions(transactionsToValidate);
 	}
 
 	private validateReceivedTransactions(): void {
 		const numberOfTransactionsToValidate = 100;
-		const transactionsToValidate = this.queues.received.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToValidate));
+		const transactionsToValidate = this._queues.received.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToValidate));
 		this.validateTransactions(transactionsToValidate);
 	}
 
 	private verifyValidatedTransactions(transactions: ReadonlyArray<Transaction>): void {
+		console.log(transactions)
 		const numberOfTransactionsToVerify = 100;
-		const transactionsToVerify = this.queues.validated.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToVerify));
+		const transactionsToVerify = this._queues.validated.dequeueUntil(returnTrueUntilLimit(numberOfTransactionsToVerify));
 		this.verifyTransactions(transactionsToVerify);
 	}
 }
