@@ -16,13 +16,20 @@
 import { EventEmitter } from 'events';
 import http, { Server } from 'http';
 import { platform } from 'os';
-import querystring from 'querystring';
+import url from 'url';
 import { attach, SCServer, SCServerSocket } from 'socketcluster-server';
 
 import { RequestFailError } from './errors';
 import { Peer, PeerInfo } from './peer';
 import { discoverPeers } from './peer_discovery';
 import { PeerOptions } from './peer_selection';
+
+import {
+	INVALID_CONNECTION_URL_CODE,
+	INVALID_CONNECTION_URL_REASON,
+	INVALID_CONNECTION_QUERY_CODE,
+	INVALID_CONNECTION_QUERY_REASON,
+} from './disconnect_status_codes';
 
 import {
 	P2PConfig,
@@ -145,15 +152,16 @@ export class P2P extends EventEmitter {
 			(socket: SCServerSocket): void => {
 				if (!socket.request.url) {
 					super.emit(EVENT_FAILED_TO_ADD_INBOUND_PEER);
-
+					socket.disconnect(INVALID_CONNECTION_URL_CODE, INVALID_CONNECTION_URL_REASON);
 					return;
 				}
-				const queryObject = querystring.parse(socket.request.url);
+				const queryObject = url.parse(socket.request.url, true).query;
 				if (
 					typeof queryObject.wsPort !== 'string' ||
 					typeof queryObject.os !== 'string' ||
 					typeof queryObject.version !== 'string'
 				) {
+					socket.disconnect(INVALID_CONNECTION_QUERY_CODE, INVALID_CONNECTION_QUERY_REASON);
 					super.emit(EVENT_FAILED_TO_ADD_INBOUND_PEER);
 				} else {
 					const wsPort: number = parseInt(queryObject.wsPort, BASE_10_RADIX);
@@ -220,6 +228,7 @@ export class P2P extends EventEmitter {
 	): Promise<ReadonlyArray<PeerInfo>> {
 		const peersObjectList = peers.map((peerInfo: PeerInfo) => {
 			const peer = new Peer(peerInfo);
+			peer.applyNodeInfo(this._nodeInfo);
 			this._newPeers.add(peerInfo);
 			this._peerPool.addPeer(peer);
 
