@@ -45,7 +45,6 @@ export const REMOTE_EVENT_RPC_REQUEST = 'rpc-request';
 export const REMOTE_EVENT_MESSAGE = 'remote-message';
 
 export const REMOTE_RPC_NODE_INFO = 'updateMyself';
-export const REMOTE_RPC_GET_ALL_PEERS_LIST = 'list';
 
 export interface PeerInfo {
 	readonly ipAddress: string;
@@ -76,7 +75,7 @@ export class Peer extends EventEmitter {
 	private _nodeInfo: P2PNodeInfo | undefined;
 	private _inboundSocket: SCServerSocket | undefined;
 	private _outboundSocket: SCClientSocket | undefined;
-	private readonly _handleRPC: (packet: unknown) => void;
+	private readonly _handleRPC: (packet: unknown, respond: any) => void;
 	private readonly _handleMessage: (packet: unknown) => void;
 
 	public constructor(peerInfo: PeerInfo, inboundSocket?: SCServerSocket) {
@@ -107,11 +106,6 @@ export class Peer extends EventEmitter {
 			) {
 				// Internal handling of request to extract the PeerInfo.
 				this._handlePeerInfo(request, respond);
-			} else if (
-				request.procedure === REMOTE_RPC_GET_ALL_PEERS_LIST &&
-				typeof request.data === 'object'
-			) {
-				this._handleGetAllPeersList(request, respond);
 			}
 			// Emit request for external use.
 			this.emit(EVENT_REQUEST_RECEIVED, request);
@@ -309,7 +303,7 @@ export class Peer extends EventEmitter {
 		outboundSocket.on('close', (code, reason) => {
 			this.emit(EVENT_DISCONNECT_OUTBOUND, {
 				code,
-				reason
+				reason,
 			});
 		});
 	}
@@ -354,9 +348,5 @@ export class Peer extends EventEmitter {
 
 		this.emit(EVENT_UPDATED_PEER_INFO, this._peerInfo);
 		respond();
-	}
-
-	private _handleGetAllPeersList(request: ProtocolRPCRequest, respond: any): void {
-		// TODO 2
 	}
 }
