@@ -218,7 +218,7 @@ export class PeerPool extends EventEmitter {
 		const discoveredPeerList: ReadonlyArray<Peer> = [...this._peerMap.values()].filter(
 			peer => peer.peerInfo.isTriedPeer
 		);
-		
+
 		return shuffle(discoveredPeerList).slice(0, count);
 	}
 
