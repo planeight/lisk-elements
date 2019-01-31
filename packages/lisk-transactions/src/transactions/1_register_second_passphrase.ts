@@ -16,18 +16,14 @@ import { getKeys, hexToBuffer } from '@liskhq/lisk-cryptography';
 import BigNum from 'browserify-bignum';
 import { SIGNATURE_FEE } from '../constants';
 import { TransactionError, TransactionMultiError } from '../errors';
+import { Status, TransactionResponse } from '../response';
 import {
 	Account,
 	SecondSignatureAsset,
-	Status,
 	TransactionJSON,
 } from '../transaction_types';
 import { validator } from '../utils';
-import {
-	BaseTransaction,
-	createBaseTransaction,
-	TransactionResponse,
-} from './base';
+import { BaseTransaction, createBaseTransaction } from './base';
 
 const TRANSACTION_SIGNATURE_TYPE = 1;
 

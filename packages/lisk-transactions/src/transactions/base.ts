@@ -31,30 +31,33 @@ import {
 	UNCONFIRMED_TRANSACTION_TIMEOUT,
 } from '../constants';
 import {
+	convertToTransactionError,
 	TransactionError,
 	TransactionMultiError,
-	TransactionPendingError,
 } from '../errors';
-import { Account, Status, TransactionJSON } from '../transaction_types';
+import { createResponse, Status, TransactionResponse } from '../response';
+import { Account, TransactionJSON } from '../transaction_types';
 import {
 	checkTypes,
 	convertBeddowsToLSK,
 	getId,
 	getTimeWithOffset,
+	isUnique,
+	validateId,
+	validateSenderIdAndPublicKey,
 	validator,
-	verifyBalance,
-	verifyMultisignatures,
 	verifySignature,
 } from '../utils';
 import { isTypedObjectArrayWithKeys } from '../utils/validation';
 import * as schemas from '../utils/validation/schema';
-
-export interface TransactionResponse {
-	readonly id: string;
-	readonly status: Status;
-	readonly errors: ReadonlyArray<TransactionError>;
-	readonly state?: { readonly sender: Account; readonly recipient?: Account };
-}
+import {
+	verifyFee,
+	verifyMultiSignature,
+	verifySecondSignature,
+	verifySecondSignatureWhenNotNeeded,
+	verifySenderId,
+	verifySenderPublicKey,
+} from '../utils/verify';
 
 export interface Attributes {
 	readonly [entity: string]: {
@@ -67,6 +70,7 @@ export enum MultisignatureStatus {
 	NONMULTISIGNATURE = 1,
 	PENDING = 2,
 	READY = 3,
+	FAIL = 4,
 }
 
 export interface EntityMap {
@@ -156,8 +160,8 @@ export abstract class BaseTransaction {
 	}
 
 	public get fee(): BigNum {
-		if(!this._fee) {
-			throw new Error('fee is required to be set before use')
+		if (!this._fee) {
+			throw new Error('fee is required to be set before use');
 		}
 
 		return this._fee;
@@ -223,45 +227,29 @@ export abstract class BaseTransaction {
 
 	public validateSchema(): TransactionResponse {
 		const transaction = this.toJSON();
-		const baseTransactionValidator = validator.compile(schemas.baseTransaction);
-		const valid = baseTransactionValidator(transaction) as boolean;
-		const errors = baseTransactionValidator.errors
-			? baseTransactionValidator.errors.map(
-					error =>
-						new TransactionError(
-							`'${error.dataPath}' ${error.message}`,
-							transaction.id,
-							error.dataPath,
-						),
-			  )
-			: [];
+		validator.validate(schemas.baseTransaction, transaction);
+		const errors = convertToTransactionError(
+			this.id,
+			validator.errors,
+		) as TransactionError[];
 
 		if (!errors.find(err => err.dataPath === '.senderPublicKey')) {
 			// `senderPublicKey` passed format check, safely check equality to senderId
-			if (
-				this.senderId.toUpperCase() !==
-				getAddressFromPublicKey(this.senderPublicKey).toUpperCase()
-			) {
-				errors.push(
-					new TransactionError(
-						'`senderId` does not match `senderPublicKey`',
-						this.id,
-						'.senderId',
-					),
-				);
+			const senderIdError = validateSenderIdAndPublicKey(
+				this.id,
+				this.senderId,
+				this.senderPublicKey,
+			);
+			if (senderIdError) {
+				errors.push(senderIdError);
 			}
 		}
-		if (this.id !== getId(this.getBytes())) {
-			errors.push(
-				new TransactionError('Invalid transaction id', this.id, '.id'),
-			);
+		const idError = validateId(this.id, this.getBytes());
+		if (idError) {
+			errors.push(idError);
 		}
 
-		return {
-			id: this.id,
-			status: !valid || errors.length > 0 ? Status.FAIL : Status.OK,
-			errors,
-		};
+		return createResponse(this.id, errors);
 	}
 
 	public validate(): TransactionResponse {
@@ -278,31 +266,21 @@ export abstract class BaseTransaction {
 			this.id,
 		);
 
-		if (!signatureVerified) {
-			errors.push(verificationError as TransactionError);
+		if (!signatureVerified && verificationError) {
+			errors.push(verificationError);
 		}
 
-		if (Array.isArray(this.signatures) && this.signatures.length > 0) {
-			// Check that signatures are unique
-			const uniqueSignatures: ReadonlyArray<string> = [
-				...new Set(this.signatures),
-			];
-			if (uniqueSignatures.length !== this.signatures.length) {
-				errors.push(
-					new TransactionError(
-						'Encountered duplicate signature in transaction',
-						this.id,
-						'.signatures',
-					),
-				);
-			}
+		if (!isUnique(this.signatures)) {
+			errors.push(
+				new TransactionError(
+					'Encountered duplicate signature in transaction',
+					this.id,
+					'.signatures',
+				),
+			);
 		}
 
-		return {
-			id: this.id,
-			status: errors.length === 0 ? Status.OK : Status.FAIL,
-			errors,
-		};
+		return createResponse(this.id, errors);
 	}
 
 	public getRequiredAttributes(): Attributes {
@@ -334,144 +312,74 @@ export abstract class BaseTransaction {
 		};
 	}
 
-	public verify({ sender }: RequiredState): TransactionResponse {
-		const errors: TransactionError[] = [];
-		// Check senderPublicKey
-		if (sender.publicKey !== this.senderPublicKey) {
-			errors.push(
-				new TransactionError(
-					'Invalid sender publicKey',
-					this.id,
-					'.senderPublicKey',
-				),
-			);
-		}
-
-		// Check senderId
-		if (
-			typeof sender.address === 'string' &&
-			sender.address.toUpperCase() !== this.senderId.toUpperCase()
-		) {
-			errors.push(
-				new TransactionError('Invalid sender address', this.id, '.senderId'),
-			);
-		}
-
-		// Check missing secondPublicKey on account
-		if (this.signSignature && !sender.secondPublicKey) {
-			errors.push(
-				new TransactionError('Sender does not have a secondPublicKey', this.id),
-			);
-		}
-
-		// Balance verification
-		const { verified: balanceVerified, error: balanceError } = verifyBalance(
-			sender,
-			this.fee,
-		);
-
-		if (!balanceVerified && balanceError) {
-			errors.push(balanceError);
-		}
-
-		// Signature verifications
-
-		// Verify secondPublicKey
-		if (sender.secondPublicKey) {
-			// Check for missing signSignature
-			if (!this.signSignature) {
-				errors.push(
-					new TransactionError(
-						'Missing signSignature',
-						this.id,
-						'.signSignature',
-					),
-				);
-			} else {
-				const transactionBytes = Buffer.concat([
-					this.getBasicBytes(),
-					hexToBuffer(this.signature),
-				]);
-
-				const {
-					verified: signatureVerified,
-					error: verificationError,
-				} = verifySignature(
-					sender.secondPublicKey,
-					this.signSignature,
-					transactionBytes,
-					this.id,
-				);
-
-				if (!signatureVerified) {
-					errors.push(verificationError as TransactionError);
-				}
-			}
-		}
-		// Verify multisignatures
-		if (
-			!(
-				sender.multisignatures &&
-				sender.multisignatures.length > 0 &&
-				sender.multimin
-			)
-		) {
-			this._multisignatureStatus = MultisignatureStatus.NONMULTISIGNATURE;
-
-			return {
-				id: this.id,
-				status: errors.length === 0 ? Status.OK : Status.FAIL,
-				errors,
-			};
-		}
-		this._multisignatureStatus = MultisignatureStatus.PENDING;
-		const {
-			status,
-			errors: multisignatureErrors,
-		} = this.processMultisignatures({ sender });
-
-		if (status === Status.PENDING && errors.length === 0) {
-			return {
-				id: this.id,
-				status,
-				errors: multisignatureErrors,
-			};
-		}
-
-		if (multisignatureErrors.length > 0) {
-			errors.push(...multisignatureErrors);
-		}
-
-		return {
-			id: this.id,
-			status: errors.length === 0 ? Status.OK : Status.FAIL,
-			errors,
-		};
-	}
-
 	public apply({ sender }: RequiredState): TransactionResponse {
+		const secondSignatureTxBytes = Buffer.concat([
+			this.getBasicBytes(),
+			hexToBuffer(this.signature),
+		]);
+		const multiSignatureTxBytes = this.signSignature
+			? secondSignatureTxBytes
+			: this.getBasicBytes();
+
+		// Verify Basic state
+		const errors = [
+			verifySenderPublicKey(this.id, sender, this.senderPublicKey),
+			verifySenderId(this.id, sender, this.senderId),
+			verifyFee(this.id, sender, this.fee),
+			verifySecondSignatureWhenNotNeeded(this.id, sender, this.signSignature),
+			verifySecondSignature(
+				this.id,
+				sender,
+				this.signSignature,
+				secondSignatureTxBytes,
+			),
+		];
+
+		// Verify MultiSignature
+		const {
+			status: multiSigStatus,
+			errors: multiSigError,
+		} = verifyMultiSignature(
+			this.id,
+			sender,
+			this.signatures,
+			multiSignatureTxBytes,
+		);
+		this._multisignatureStatus = multiSigStatus;
+		if (multiSigError) {
+			errors.push(...multiSigError);
+		}
+		const filteredError = errors.filter(
+			err => err !== undefined,
+		) as TransactionError[];
+		if (
+			this._multisignatureStatus === MultisignatureStatus.PENDING &&
+			filteredError.length === 0
+		) {
+			return {
+				id: this.id,
+				status: Status.PENDING,
+				errors: [],
+			};
+		}
+
 		if (!sender) {
 			throw new Error('Sender is required.');
 		}
 		const updatedBalance = new BigNum(sender.balance).sub(this.fee);
 		const updatedAccount = { ...sender, balance: updatedBalance.toString() };
-		const errors = updatedBalance.gte(0)
-			? []
-			: [
-					new TransactionError(
-						`Account does not have enough LSK: ${
-							sender.address
-						}, balance: ${convertBeddowsToLSK(sender.balance)}`,
-						this.id,
-					),
-			  ];
+		if (updatedBalance.lt(0)) {
+			filteredError.push(
+				new TransactionError(
+					`Account does not have enough LSK: ${
+						sender.address
+					}, balance: ${convertBeddowsToLSK(sender.balance)}`,
+					this.id,
+				),
+			);
+		}
 
-		return {
-			id: this.id,
-			status: errors.length > 0 ? Status.FAIL : Status.OK,
-			state: { sender: updatedAccount },
-			errors,
-		};
+		return createResponse(this.id, filteredError);
 	}
 
 	public undo({ sender }: RequiredState): TransactionResponse {
@@ -484,95 +392,58 @@ export abstract class BaseTransaction {
 			? []
 			: [new TransactionError('Invalid balance amount', this.id)];
 
-		return {
-			id: this.id,
-			status: errors.length > 0 ? Status.FAIL : Status.OK,
-			state: { sender: updatedAccount },
-			errors,
-		};
+		return createResponse(this.id, errors);
 	}
 
 	public addVerifiedMultisignature(signature: string): TransactionResponse {
 		if (!this.signatures.includes(signature)) {
 			this.signatures.push(signature);
 
-			return {
-				id: this.id,
-				status: Status.OK,
-				errors: [],
-			};
+			return createResponse(this.id);
 		}
 
-		return {
-			id: this.id,
-			status: Status.FAIL,
-			errors: [
-				new TransactionError(
-					'Failed to add signature.',
-					this.id,
-					'.signatures',
-				),
-			],
-		};
+		return createResponse(this.id, [
+			new TransactionError('Failed to add signature.', this.id, '.signatures'),
+		]);
 	}
 
 	public processMultisignatures({
 		sender,
 	}: RequiredState): TransactionResponse {
 		const transactionBytes = this.signSignature
-			? Buffer.concat([
-					this.getBasicBytes(),
-					hexToBuffer(this.signature),
-			  ])
+			? Buffer.concat([this.getBasicBytes(), hexToBuffer(this.signature)])
 			: this.getBasicBytes();
 
-		if (!sender.multimin) {
+		const { status, errors } = verifyMultiSignature(
+			this.id,
+			sender,
+			this.signatures,
+			transactionBytes,
+		);
+		this._multisignatureStatus = status;
+		if (
+			this._multisignatureStatus === MultisignatureStatus.PENDING &&
+			!errors
+		) {
 			return {
 				id: this.id,
-				status: Status.FAIL,
-				errors: [
-					new TransactionError('Sender does not have valid multimin', this.id),
-				],
+				status: Status.PENDING,
+				errors: [],
 			};
 		}
 
-		const { verified, errors } = verifyMultisignatures(
-			sender.multisignatures,
-			this.signatures,
-			sender.multimin,
-			transactionBytes,
-			this.id,
-		);
-
-		if (verified) {
-			this._multisignatureStatus = MultisignatureStatus.READY;
-		}
-
-		return {
-			id: this.id,
-			status:
-				Array.isArray(errors) &&
-				errors.length > 0 &&
-				errors[0] instanceof TransactionPendingError
-					? Status.PENDING
-					: verified
-						? Status.OK
-						: Status.FAIL,
-			errors: (errors as ReadonlyArray<TransactionError>) || [],
-		};
+		return createResponse(this.id, errors);
 	}
 
 	public isExpired(date: Date = new Date()): boolean {
-		// tslint:disable-next-line no-magic-numbers
-		const timeNow = Math.floor(date.getTime() / 1000);
+		const MS = 1000;
+		const timeNow = Math.floor(date.getTime() / MS);
 		const timeOut =
 			this._multisignatureStatus === MultisignatureStatus.PENDING ||
 			this._multisignatureStatus === MultisignatureStatus.READY
 				? UNCONFIRMED_MULTISIG_TRANSACTION_TIMEOUT
 				: UNCONFIRMED_TRANSACTION_TIMEOUT;
-		const timeElapsed =
-			// tslint:disable-next-line no-magic-numbers
-			timeNow - Math.floor(this.receivedAt.getTime() / 1000);
+		const timeElapsed = timeNow - Math.floor(this.receivedAt.getTime() / MS);
 
 		return timeElapsed > timeOut;
 	}
@@ -611,5 +482,13 @@ export abstract class BaseTransaction {
 			transactionAmount,
 			this.getAssetBytes(),
 		]);
+	}
+
+	public verify(_: RequiredState): TransactionResponse {
+		return {
+			id: this.id,
+			status: Status.FAIL,
+			errors: [],
+		};
 	}
 }

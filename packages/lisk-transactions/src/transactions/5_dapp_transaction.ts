@@ -15,7 +15,8 @@
 import BigNum from 'browserify-bignum';
 import { DAPP_FEE } from '../constants';
 import { TransactionError, TransactionMultiError } from '../errors';
-import { Account, Status, TransactionJSON } from '../transaction_types';
+import { Status, TransactionResponse } from '../response';
+import { Account, TransactionJSON } from '../transaction_types';
 import {
 	isTypedObjectArrayWithKeys,
 	stringEndsWith,
@@ -30,7 +31,6 @@ import {
 	ENTITY_TRANSACTION,
 	EntityMap,
 	RequiredState,
-	TransactionResponse,
 } from './base';
 
 const TRANSACTION_DAPP_TYPE = 5;

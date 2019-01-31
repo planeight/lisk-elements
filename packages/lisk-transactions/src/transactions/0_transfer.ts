@@ -16,12 +16,8 @@ import { getAddressFromPublicKey } from '@liskhq/lisk-cryptography';
 import BigNum from 'browserify-bignum';
 import { BYTESIZES, MAX_TRANSACTION_AMOUNT, TRANSFER_FEE } from '../constants';
 import { TransactionError, TransactionMultiError } from '../errors';
-import {
-	Account,
-	Status,
-	TransactionJSON,
-	TransferAsset,
-} from '../transaction_types';
+import { Status, TransactionResponse } from '../response';
+import { Account, TransactionJSON, TransferAsset } from '../transaction_types';
 import {
 	isTypedObjectArrayWithKeys,
 	validateAddress,
@@ -35,7 +31,6 @@ import {
 	createBaseTransaction,
 	ENTITY_ACCOUNT,
 	EntityMap,
-	TransactionResponse,
 } from './base';
 
 const TRANSACTION_TRANSFER_TYPE = 0;
@@ -137,7 +132,7 @@ export class TransferTransaction extends BaseTransaction {
 			throw new TransactionMultiError('Invalid asset types', tx.id, errors);
 		}
 		this.asset = tx.asset as TransferAsset;
-		this._fee = new BigNum(TRANSFER_FEE); 
+		this._fee = new BigNum(TRANSFER_FEE);
 	}
 
 	public static create(input: TransferInput): object {

@@ -21,10 +21,10 @@ import {
 	MULTISIGNATURE_MIN_LIFETIME,
 } from '../constants';
 import { TransactionError, TransactionMultiError } from '../errors';
+import { Status, TransactionResponse } from '../response';
 import {
 	Account,
 	MultiSignatureAsset,
-	Status,
 	TransactionJSON,
 } from '../transaction_types';
 import {
@@ -37,7 +37,6 @@ import {
 	BaseTransaction,
 	createBaseTransaction,
 	CreateBaseTransactionInput,
-	TransactionResponse,
 } from './base';
 
 const TRANSACTION_MULTISIGNATURE_TYPE = 4;
@@ -238,7 +237,7 @@ export class MultisignatureTransaction extends BaseTransaction {
 				min: this.asset.multisignature.min,
 				lifetime: this.asset.multisignature.lifetime,
 				keysgroup: [...this.asset.multisignature.keysgroup],
-			}
+			},
 		};
 	}
 
@@ -439,7 +438,12 @@ export class MultisignatureTransaction extends BaseTransaction {
 		}
 		const errors = [...baseErrors];
 
-		const { multisignatures, multimin, multilifetime, ...strippedSender } = state.sender;
+		const {
+			multisignatures,
+			multimin,
+			multilifetime,
+			...strippedSender
+		} = state.sender;
 
 		return {
 			id: this.id,

@@ -16,7 +16,8 @@ import { getAddressFromPublicKey } from '@liskhq/lisk-cryptography';
 import BigNum from 'browserify-bignum';
 import { VOTE_FEE } from '../constants';
 import { TransactionError, TransactionMultiError } from '../errors';
-import { Account, Status, TransactionJSON } from '../transaction_types';
+import { Status, TransactionResponse } from '../response';
+import { Account, TransactionJSON } from '../transaction_types';
 import { prependMinusToPublicKeys, prependPlusToPublicKeys } from '../utils';
 import {
 	isTypedObjectArrayWithKeys,
@@ -32,7 +33,6 @@ import {
 	ENTITY_ACCOUNT,
 	EntityMap,
 	RequiredState,
-	TransactionResponse,
 } from './base';
 
 const PREFIX_UPVOTE = '+';

@@ -45,7 +45,10 @@ export {
 	isValidInteger,
 	isNumberString,
 	isTypedObjectArrayWithKeys,
+	isUnique,
+	validateId,
+	validateSenderIdAndPublicKey,
+	validateUsername,
 	validateTransaction,
 	validator,
 } from './validation';
-export { verifyBalance } from './verify_balance';

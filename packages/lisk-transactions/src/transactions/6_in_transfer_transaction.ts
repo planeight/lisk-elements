@@ -15,7 +15,8 @@
 import BigNum from 'browserify-bignum';
 import { IN_TRANSFER_FEE } from '../constants';
 import { TransactionError, TransactionMultiError } from '../errors';
-import { Account, Status, TransactionJSON } from '../transaction_types';
+import { Status, TransactionResponse } from '../response';
+import { Account, TransactionJSON } from '../transaction_types';
 import { convertBeddowsToLSK } from '../utils';
 import { isTypedObjectArrayWithKeys, validator } from '../utils/validation';
 import {
@@ -25,7 +26,6 @@ import {
 	ENTITY_TRANSACTION,
 	EntityMap,
 	RequiredState,
-	TransactionResponse,
 } from './base';
 
 const TRANSACTION_INTRANSFER_TYPE = 6;
