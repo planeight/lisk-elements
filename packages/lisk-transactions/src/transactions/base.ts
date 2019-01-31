@@ -317,9 +317,6 @@ export abstract class BaseTransaction {
 			this.getBasicBytes(),
 			hexToBuffer(this.signature),
 		]);
-		const multiSignatureTxBytes = this.signSignature
-			? secondSignatureTxBytes
-			: this.getBasicBytes();
 
 		// Verify Basic state
 		const errors = [
@@ -336,22 +333,14 @@ export abstract class BaseTransaction {
 		];
 
 		// Verify MultiSignature
-		const {
-			status: multiSigStatus,
-			errors: multiSigError,
-		} = verifyMultiSignature(
-			this.id,
-			sender,
-			this.signatures,
-			multiSignatureTxBytes,
-		);
-		this._multisignatureStatus = multiSigStatus;
+		const { errors: multiSigError } = this.processMultisignatures({ sender });
 		if (multiSigError) {
 			errors.push(...multiSigError);
 		}
 		const filteredError = errors.filter(
 			err => err !== undefined,
 		) as TransactionError[];
+
 		if (
 			this._multisignatureStatus === MultisignatureStatus.PENDING &&
 			filteredError.length === 0
@@ -368,16 +357,6 @@ export abstract class BaseTransaction {
 		}
 		const updatedBalance = new BigNum(sender.balance).sub(this.fee);
 		const updatedAccount = { ...sender, balance: updatedBalance.toString() };
-		if (updatedBalance.lt(0)) {
-			filteredError.push(
-				new TransactionError(
-					`Account does not have enough LSK: ${
-						sender.address
-					}, balance: ${convertBeddowsToLSK(sender.balance)}`,
-					this.id,
-				),
-			);
-		}
 
 		return createResponse(this.id, filteredError);
 	}
