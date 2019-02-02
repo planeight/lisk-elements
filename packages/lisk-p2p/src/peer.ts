@@ -313,10 +313,16 @@ export class Peer extends EventEmitter {
 	}
 
 	private _createOutboundSocket(): SCClientSocket {
+		const flatNodeInfo = this._nodeInfo
+			? {
+					...this._nodeInfo,
+					...(this._nodeInfo.options ? this._nodeInfo.options : {}),
+			  }
+			: {};
 		const outboundSocket = socketClusterClient.create({
 			hostname: this._ipAddress,
 			port: this._wsPort,
-			query: querystring.stringify(this._nodeInfo),
+			query: querystring.stringify(flatNodeInfo),
 			autoConnect: false,
 		});
 
